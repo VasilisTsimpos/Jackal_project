@@ -25,7 +25,7 @@ if __name__ == "__main__":
             time = next(t, None)
 
             Pr = robot.getPosition()
-            Pd = np.array([[0.0], [0.0], Pr[2]])
+            Pd = np.array([[1.0], [1.0], Pr[2]])
 
             error_p = Pd - Pr
             print("----") 

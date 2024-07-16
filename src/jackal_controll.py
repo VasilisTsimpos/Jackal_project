@@ -2,7 +2,7 @@
 
 import rospy
 import numpy as np
-from scipy.spatial.transform import Rotation
+# from scipy.spatial.transform import Rotation
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 import math
@@ -61,12 +61,11 @@ class Jackal:
 
         self.__init_ok = True  
     
-    def calcVelocity(self):
-        dt = 0.1
+    def calcLinearVel(self):
+        dt = 1 / self.getRate()
+
         pos = self.getPosition()
         prev = self.__prevPos
-        
-
 
         vel_x  = (pos[0] - prev[0]) / dt
         vel_y  = (pos[1] - prev[1]) / dt
@@ -77,6 +76,9 @@ class Jackal:
         self.__prevPos = pos 
 
         return self.__vel
+    
+    def calcAngularVel(self):
+        pass
 
     def rotZ(self, theta):
         R = np.array([ [math.cos(theta), -math.sin(theta), 0.0],
@@ -101,7 +103,7 @@ class Jackal:
             Returns the position of the robot based on odometry 
     """
     def getPosition(self):
-        return np.array([[self.__x], [self.__y], [0]])
+        return np.array([self.__x, self.__y, self.__z])
 
     def getRotationMatrix(self):
         return self.__rot_mat
@@ -114,23 +116,3 @@ class Jackal:
     
     def setAngularSpeed(self, a_speed):
         self.__vel_cmd.angular.z = a_speed 
-
-    def getFifthOrder(self, t, tf, qi, qdi, qddi, qf, qdf, qddf):
-        k0 = qi
-        k1 = qdi
-        k2 = qddi / 2
-        k3 = (10 * (qf-qi) / (tf**3))   - ((4*qdf + 6*qdi) / (tf**2))     - ((3*qddi-qddf) / (2*tf))
-        k4 = (-15 * (qf-qi) / (tf**4))  + ((7*qdf + 8*qdi) / (tf**3))   + ((3*qddi-2*qddf) / 2*(tf**2))
-        k5 = (6*(qf-qi) / (tf**5))      - ((3*qdf + qdi) / (tf**4))     - ((qddi - qddf) / 2*(tf**3))
-
-
-        pt = k0 + k1*t + k2*(t**2) + k3*(t**3) + k4*(t**4) + k5*(t**5)
-        vt = k1 + 2*k2*t + 3*k3*(t**2) + 4*k4*(t**3) + 5*k5*(t**4)
-        at = 2*k2 + 6*k3*t + 12*k4*(t**2) + 20*k5*(t**3) 
-
-        if t > tf:
-            pt = qf
-            vt = qdf
-            at = qddf
-
-        return pt, vt, at

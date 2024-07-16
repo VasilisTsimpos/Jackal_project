@@ -6,127 +6,95 @@ import math
 from jackal_controll import Jackal
 import matplotlib.pyplot as plt
 
-def getLinearError(p, pd, R):
-    error = pd - p # Error from the inertial frame 
+def getError(p, pd, R):
+    # Vectors should be represented from inertial frame
+    # And it will return the error vector represented from robot's frame
+    e = pd - p
+    e = changePerspective(e, R.T)
 
-    errorb = R.T @ error # Error from the robots frame
+    return e
 
-    return errorb[0]
 
-def getAngularError(p):
-    # Desired Position should be represented from the robots frame
+def getLinearError(e):
+    # Vectors should be represented from robots frame
+    return e[0]
 
-    dot_product = np.eye(3)[0, :2] @ make_unit(p[:2, 0]).reshape(2,1)
-    cross_product = np.cross(np.eye(3)[0, :3], make_unit(p).T).reshape(3,1)
+def getAngularError(e):
+    # Vectors should be represented from robots frame
+    unit_x = np.eye(3)[0, :]
+    dot_product = unit_x @ make_unit(e)
+
+    cross_product = np.cross(unit_x, e)
+
+    n = cross_product[2] / np.abs(cross_product[2])
     
-    n = 1
-    if (abs(cross_product[2]) > 0.01):
-        n = cross_product[2] / np.linalg.norm(cross_product[2])
-
-    ad = n * math.acos(dot_product) # Desired angle
-
-    return ad
-
+    angle = n * math.acos(dot_product)
+    
+    return angle
 
 def make_unit(p):
     return p / np.linalg.norm(p)
 
+def changePerspective(p, R):
+    p = R @ p
+
+    return p
+
+def getFifthOrder(t, tf, qi, qdi, qddi, qf, qdf, qddf):
+    k0 = qi
+    k1 = qdi
+    k2 = qddi / 2
+    k3 = (10 * (qf-qi) / (tf**3))   - ((4*qdf + 6*qdi) / (tf**2))     - ((3*qddi-qddf) / (2*tf))
+    k4 = (-15 * (qf-qi) / (tf**4))  + ((7*qdf + 8*qdi) / (tf**3))   + ((3*qddi-2*qddf) / 2*(tf**2))
+    k5 = (6*(qf-qi) / (tf**5))      - ((3*qdf + qdi) / (tf**4))     - ((qddi - qddf) / 2*(tf**3))
+
+
+    pt = k0 + k1*t + k2*(t**2) + k3*(t**3) + k4*(t**4) + k5*(t**5)
+    vt = k1 + 2*k2*t + 3*k3*(t**2) + 4*k4*(t**3) + 5*k5*(t**4)
+    at = 2*k2 + 6*k3*t + 12*k4*(t**2) + 20*k5*(t**3)
+
+    if t > tf:
+        pt = qf
+        vt = qdf
+        at = qddf
+    
+    return pt, vt, at
 
 if __name__ == "__main__":
     try:
         robot = Jackal(10)
-
-        x_log = []  
-        odom_log = []
-        v_log = []
-        v_cmd_log = []
-        a_log = []
-        t_log = []
-        calc_log = []
         time = 0
-        tf = 10
-        # kp = 4.16
-        kp = 3.5
 
         rate = robot.getRate()
+        
+        #Robots orientation
+        R0b = robot.getRotationMatrix()
+        
+        #Robots position from inertial frame
+        P0b = robot.getPosition()
 
-        Pb0 = Pb = robot.getPosition()
-        Pd = np.array([[1.0], [0.0], [0.0]]) # desired position from robots frame
-
-        Ad0 = getAngularError(Pd) # Angular error
-
-        Pd0 = Pb + robot.getRotationMatrix() @ Pd # Desired position from the inertial frame 
+        #Robots desired position from robots frame
+        Pd = np.array([-2, 1.5, 0.0])
+        #Robots desired position from inertial frame
+        P0d = P0b + changePerspective(Pd, R0b)
 
         while not rospy.is_shutdown():
-            Pb = robot.getPosition()
-            R0b = robot.getRotationMatrix()
-
+            e = getError(robot.getPosition(), P0d, robot.getRotationMatrix())
             
-            Pd,v,a = robot.getFifthOrder(time, tf, Pb0, 0, 0, Pd0, 0, 0)
-            v = np.linalg.norm(v)
-            a = np.linalg.norm(a)
-            if time > tf:
-                Pd = Pd0
-                v = 0
-                a = 0
-
-
-            linear_v = kp * getLinearError(Pb, Pd, R0b) # Proportional error
-
-            # angular_v = 0
-            # if time > 0:
-            #     angular_v = getAngularError( R0b.T @ (Pd - Pb) ) # Angular proporsonal error
-
+            lin_vel = getLinearError(e)
+            ang_vel = getAngularError(e)
             
-            robot.setLinearSpeed(v) # Set linear speed
-            # robot.setAngularSpeed(0) # Set angular speed
-            
-            robot.setRobotSpeed() # Publish speed
+            if np.rad2deg(ang_vel) < 0.05:
+                ang_vel = 0
 
-            # Log data 
-            calc_log.append(robot.calcVelocity())
-            odom_log.append(Pb.reshape(3,).tolist())
-            v_cmd_log.append(linear_v)
-            x_log.append(Pd.reshape(3,).tolist()) 
-            v_log.append(v)
-            t_log.append(time)
+            print(f'linear: {lin_vel}, angural: {np.rad2deg(ang_vel)}')
+
+            robot.setLinearSpeed(1 * lin_vel)
+            robot.setAngularSpeed(1 * ang_vel)
+            robot.setRobotSpeed()   
 
             time += 0.1
             rate.sleep()
             
     except rospy.ROSInterruptException:
-        # t = np.array(t_log)
-        # x = np.array(x_log).T
-        # odom = np.array(odom_log).T
-        # vel = np.array(v_log)
-        # calc_vel = np.array(calc_log)
-        # cmd_vel = np.array(v_cmd_log)
-
-
-        # fig, ax = plt.subplots(2, figsize = (10,10))
-        # ax[0].plot(t, x[0,:], linestyle = 'dashed')
-        # ax[0].plot(t, x[1,:], linestyle = 'dashed')
-        # ax[0].plot(t, odom[0,:])
-        # ax[0].plot(t, odom[1,:])
-        # ax[0].set(xlabel='Time', ylabel='Position')
-        # ax[0].legend(['X trajectory position',
-        #               'Y trajectory positino',
-        #               'X robot position',
-        #               'Y robot position'])
-        # ax[0].grid()
-
-
-        # ax[1].plot(t, vel)
-        # ax[1].plot(t, cmd_vel)
-        # ax[1].set(xlabel='Time', ylabel='Velocity')
-        # ax[1].legend(['Trajectory velocity',
-        #               'Commanded velocity'])
-        # ax[1].grid()
-
-        # d = np.linalg.norm(Pb0[:2,0] - Pd0[:2,0])
-        # fig.suptitle(f'Distance traveled: {d:.2f}m, tf: {tf}sec, Kp: {kp}')
-        # plt.show()
-
-        # print("\n")
-        # print("--End--") 
         pass
