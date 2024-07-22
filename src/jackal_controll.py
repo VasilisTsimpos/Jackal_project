@@ -15,7 +15,9 @@ class Jackal:
     __rot_mat = np.identity(3, dtype=float)
     __init_ok = False
     __prevPos = 0
+    __prevTheta = 0
     __vel = 0
+    __ang_vel = 0
 
     def __init__(self, freq):
         # Initialize the ROS node
@@ -42,6 +44,8 @@ class Jackal:
             pass 
 
         self.__prevPos = self.getPosition()
+        self.__prevTheta = self.getTheta()
+        self.__counter = 0
 
          
     def __getPoseInfo(self, data):
@@ -62,7 +66,7 @@ class Jackal:
         self.__init_ok = True  
     
     def calcLinearVel(self):
-        dt = 1 / self.getRate()
+        dt = 1 / 10
 
         pos = self.getPosition()
         prev = self.__prevPos
@@ -78,7 +82,31 @@ class Jackal:
         return self.__vel
     
     def calcAngularVel(self):
-        pass
+        dt = 1 / 10
+
+        theta = self.getTheta()
+        prev = self.__prevTheta
+
+        # Zero Crossing
+        if theta*prev < 0:
+            if prev > -np.pi and prev < 0:
+                self.__counter += 1
+
+        self.__prevTheta = theta
+
+        if theta < 0:
+            theta = 2*np.pi + theta
+        if prev < 0:
+            prev = 2*np.pi + prev
+
+        theta += self.__counter * 2*np.pi
+        prev += self.__counter * 2*np.pi
+
+        self.__ang_vel = (theta - prev) / dt
+
+        return self.__ang_vel
+
+
 
     def rotZ(self, theta):
         R = np.array([ [math.cos(theta), -math.sin(theta), 0.0],

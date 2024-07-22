@@ -19,16 +19,17 @@ if __name__ == "__main__":
         #Robots position from inertial frame
         P0b = robot.getPosition()
 
-        #Robots desired position from robots frame
-        Pd = np.array([1.0, 1.0, 0.0])
         #Robots desired position from inertial frame
-        P0d = P0b + changePerspective(Pd, R0b)
+        P0d = [0.0, 0.0, 0.0]
 
         while not rospy.is_shutdown():
             e = getError(robot.getPosition(), P0d, robot.getRotationMatrix()) # From robots frame
             
             lin_vel = 1 * getLinearError(e)
-            ang_vel = 0.5 * getAngularError(e)
+            ang_vel = 1 * getAngularError(e)
+            
+            if np.abs(ang_vel) < np.deg2rad(0.1):
+                ang_vel = 0
 
             robot.setLinearSpeed(lin_vel)
             robot.setAngularSpeed(ang_vel)
