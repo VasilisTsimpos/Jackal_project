@@ -26,7 +26,8 @@ if __name__ == "__main__":
     print('First Position', P0b[:2])
 
     #Robots desired position from robots frame
-    Pd = np.array([3.0, 1.2, 0.0])
+    Pd = np.array([2.0, -3.0, 0.0])
+    size = np.linalg.norm(Pd)
     #Robots desired position from inertial frame
     P0d = P0b + changePerspective(Pd, R0b)
 
@@ -79,6 +80,7 @@ if __name__ == "__main__":
         plt.plot(np.array(time_log), np.array(trajectory_log), linestyle='dashed')
         plt.xlabel('Time')
         plt.ylabel('Distance')
+        plt.title('Position Of Jackal')
         plt.legend(['x', 'y','trajectory x', 'trajectory y'])
         plt.grid()
 
@@ -87,8 +89,9 @@ if __name__ == "__main__":
         plt.plot(np.array(time_log), np.array(velocity_log))
         plt.xlabel('Time')
         plt.ylabel('Velocity')
-        plt.legend(['Commanded velocity', 'Calculated velocity'])
+        plt.title('Velocity Of Jackal')
+        plt.legend(['Trajectory velocity', 'Calculated velocity'])
         plt.grid()
         plt.show()
 
-        print(np.linalg.norm(P0b[:2] - pos[:2]))
+        print('Error in desired position', np.linalg.norm(P0b[:2] - pos[:2]) - size)
